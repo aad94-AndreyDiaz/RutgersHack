@@ -1,0 +1,220 @@
+import json
+import requests
+import re
+
+# =========================================================
+# STATE
+# =========================================================
+state_memory = {
+    "burnout_history": []
+}
+
+# =========================================================
+# SCORING (your system simplified but intact)
+# =========================================================
+def sleep_score(h): return min(1.0, max(0.1, h / 8))
+def water_score(g): return min(1.0, g / 8)
+def break_score(m): return min(1.0, m / 60)
+def emotional_strain(m): return (5 - m) / 4
+def free_time_score(t): return min(1.0, t / 60)
+
+def cognitive_load(data):
+    unfinished = sum(1 for t in data["tasks"] if not t["done"])
+    return min(1.0, 0.5 * (data["calendar_hours"]/10) + 0.5 * unfinished / max(1, len(data["tasks"])))
+
+def burnout_engine(data):
+    S = sleep_score(data["sleep_hours"])
+    W = water_score(data["water_glasses"])
+    B = break_score(data["break_minutes"])
+    E = emotional_strain(data["mood"])
+    F = free_time_score(data["free_time_minutes"])
+    C = cognitive_load(data)
+
+    burnout = 100 * (
+        0.30*(1-S) +
+        0.14*(1-W) +
+        0.20*C +
+        0.18*E +
+        0.10*(1-B) +
+        0.08*(1-F)
+    )
+    return burnout
+
+# =========================================================
+# CALENDAR (your messy input → structured fixed blocks)
+# =========================================================
+def build_events():
+    return [
+        {"name": "Outwater Basketball", "start": "07:00", "end": "09:00"},
+        {"name": "Cabinet Meeting", "start": "09:00", "end": "09:30"},
+        {"name": "CS288", "start": "11:30", "end": "12:50"},
+        {"name": "Common Hour", "start": "11:30", "end": "13:00"},
+        {"name": "E-Board Meeting", "start": "11:30", "end": "13:00"},
+        {"name": "YWCC Class", "start": "13:00", "end": "14:20"},
+        {"name": "CS Generative AI", "start": "16:00", "end": "17:20"},
+    ]
+
+# =========================================================
+# TIME HELPERS
+# =========================================================
+def to_min(t):
+    h,m = map(int,t.split(":"))
+    return h*60+m
+
+def to_time(m):
+    return f"{m//60:02d}:{m%60:02d}"
+
+# =========================================================
+# FREE BLOCK GENERATION (CRITICAL FIX)
+# =========================================================
+def compute_free_blocks(events):
+    events = sorted(events, key=lambda x: to_min(x["start"]))
+    start_day, end_day = 6*60, 23*60
+
+    free = []
+    cur = start_day
+
+    for e in events:
+        s, t = to_min(e["start"]), to_min(e["end"])
+        if s > cur:
+            free.append((cur, s))
+        cur = max(cur, t)
+
+    if cur < end_day:
+        free.append((cur, end_day))
+
+    return free
+
+# =========================================================
+# GROQ
+# =========================================================
+GROQ_API_KEY = "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"
+URL = "https://api.groq.com/openai/v1/chat/completions"
+
+def groq_call(payload, system_prompt):
+
+    r = requests.post(
+        URL,
+        headers={
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role":"system","content":system_prompt},
+                {"role":"user","content":json.dumps(payload)}
+            ],
+            "temperature":0.2
+        }
+    )
+
+    return r.json()["choices"][0]["message"]["content"]
+
+# =========================================================
+# JSON SAFETY
+# =========================================================
+def extract_json(text):
+    try:
+        return json.loads(text)
+    except:
+        m = re.search(r"\{.*\}", text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group())
+            except:
+                return None
+    return None
+
+# =========================================================
+# MAIN OPTIMIZER (FIXED HYBRID LOGIC)
+# =========================================================
+def optimizer(data):
+
+    burnout = burnout_engine(data)
+    events = build_events()
+    free_blocks = compute_free_blocks(events)
+
+    system_prompt = """
+You are a task allocator.
+
+You do NOT create schedules from scratch.
+
+You ONLY assign tasks into provided free time blocks.
+
+Rules:
+- Do NOT overlap blocks
+- Do NOT modify calendar events
+- Fill ONLY free blocks
+- If burnout > 70 → reduce tasks (leave gaps)
+- If burnout > 60 → insert 10 min breaks between tasks
+- Prefer shorter tasks first if burnout high
+
+Return JSON ONLY:
+
+{
+  "summary": "...",
+  "schedule": [
+    {
+      "start": "HH:MM",
+      "end": "HH:MM",
+      "title": "...",
+      "type": "task|break"
+    }
+  ]
+}
+"""
+
+    payload = {
+        "burnout": burnout,
+        "tasks": data["tasks"],
+        "free_blocks": free_blocks,
+        "calendar": events
+    }
+
+    raw = groq_call(payload, system_prompt)
+    plan = extract_json(raw)
+
+    if not plan:
+        plan = {"summary":"fallback","schedule":[]}
+
+    state_memory["burnout_history"].append(burnout)
+
+    return {
+        "burnout": round(burnout,2),
+        "free_blocks": free_blocks,
+        "plan": plan
+    }
+
+# =========================================================
+# INPUT (YOUR DATA)
+# =========================================================
+data = {
+    "sleep_hours": 5.2,
+    "water_glasses": 3,
+    "break_minutes": 10,
+    "mood": 2,
+    "free_time_minutes": 15,
+    "calendar_hours": 9,
+    "tasks": [
+        {"name":"study CS288","done":False},
+        {"name":"emails","done":False},
+        {"name":"gym","done":False},
+        {"name":"project","done":False}
+    ]
+}
+
+# =========================================================
+# RUN
+# =========================================================
+result = optimizer(data)
+
+print("\nBURNOUT:", result["burnout"])
+
+print("\nFREE BLOCKS:")
+for b in result["free_blocks"]:
+    print(to_time(b[0]), "-", to_time(b[1]))
+
+print("\nSCHEDULE:")
+for s in result["plan"]["schedule"]:
+    print(s.get("start"), "-", s.get("end"), "→", s.get("title"))
