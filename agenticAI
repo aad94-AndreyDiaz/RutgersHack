@@ -1,0 +1,110 @@
+import json
+import requests
+from collections import deque
+
+# =========================================================
+# CONFIG
+# =========================================================
+GROQ_API_KEY = "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"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# =========================================================
+# MEMORY
+# =========================================================
+memory = deque(maxlen=8)
+
+# =========================================================
+# SYSTEM PROMPT (UPDATED BEHAVIOR)
+# =========================================================
+SYSTEM_PROMPT = """
+You are a burnout prevention assistant.
+
+You are a practical tool, not a friend.
+
+Your role:
+- Help users understand and prevent burnout
+- Provide clear, realistic strategies
+- Suggest useful tools, systems, and habits
+- Keep responses grounded and usable
+
+Tone:
+- Calm, neutral, and helpful
+- Not emotional or motivational
+- Not overly rigid or robotic
+
+Response style:
+- Short explanation (what’s going on)
+- Practical suggestions (optional, not forced)
+- Relevant resources (apps, methods, frameworks)
+
+Guidelines:
+- Do NOT force structured outputs
+- Do NOT overload with instructions
+- Prefer 2–4 useful suggestions max
+- Include specific tools when helpful (apps, techniques, systems)
+- Avoid therapy-style language
+
+Examples of resources:
+- Focus tools (Pomodoro, time blocking)
+- Apps (Notion, Todoist, Google Calendar)
+- Recovery methods (walks, sleep timing, breaks)
+- Cognitive strategies (task batching, limiting WIP)
+
+Goal:
+Make the user slightly more effective and less burned out after each message.
+"""
+
+# =========================================================
+# GROQ CALL
+# =========================================================
+def groq_chat(user_input):
+
+    memory.append({"role": "user", "content": user_input})
+
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(memory)
+
+    try:
+        response = requests.post(
+            GROQ_URL,
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": messages,
+                "temperature": 0.4
+            }
+        )
+
+        content = response.json()["choices"][0]["message"]["content"]
+
+    except Exception:
+        content = "Unable to generate response. Suggest taking a 10–15 minute break and revisiting priorities."
+
+    memory.append({"role": "assistant", "content": content})
+
+    return content
+
+# =========================================================
+# CLI LOOP
+# =========================================================
+def run_agent():
+    print("\n=== Burnout Prevention Assistant ===")
+    print("Type 'exit' to stop.\n")
+
+    while True:
+        user = input("You: ")
+
+        if user.lower() in ["exit", "quit"]:
+            break
+
+        reply = groq_chat(user)
+        print("\nAgent:\n", reply, "\n")
+
+# =========================================================
+# RUN
+# =========================================================
+if __name__ == "__main__":
+    run_agent()
