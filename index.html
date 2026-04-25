@@ -605,6 +605,66 @@
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    /* ── SCHEDULE PANEL ── */
+    .sched-fixed-item {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.74rem;
+      color: var(--muted);
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .sched-fixed-item:last-child { border-bottom: none; }
+
+    .timeline-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      animation: fadeUp 0.3s ease both;
+    }
+    .timeline-item:last-child { border-bottom: none; }
+
+    .tl-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      min-width: 86px;
+      padding-top: 2px;
+    }
+
+    .tl-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .tl-dot.task   { background: var(--accent2); }
+    .tl-dot.break  { background: var(--accent); }
+    .tl-dot.idle   { background: var(--muted); }
+    .tl-dot.fixed  { background: var(--warn); }
+
+    .tl-body { flex: 1; }
+
+    .tl-title {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .tl-type {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .tl-type.task  { color: var(--accent2); }
+    .tl-type.break { color: var(--accent); }
+    .tl-type.fixed { color: var(--warn); }
   </style>
 </head>
 <body>
@@ -618,7 +678,7 @@
   <button class="active" onclick="switchTab('home')">Home</button>
   <button onclick="switchTab('food')">🍽 Food Scanner</button>
   <button onclick="switchTab('burnout')">📊 Burnout Check</button>
-  <button onclick="switchTab('solve')">⚡ AI Optimizer</button>
+  <button onclick="switchTab('schedule')">🗓 Schedule</button>
 </nav>
 
 <main>
@@ -648,14 +708,17 @@
       <div class="qc-arrow">›</div>
     </div>
 
-    <div class="quick-card" onclick="switchTab('solve')">
-      <div class="qc-icon">⚡</div>
+
+    <div class="quick-card" onclick="switchTab('schedule')">
+      <div class="qc-icon">🗓</div>
       <div class="qc-text">
-        <h3>AI Optimizer</h3>
-        <p>Get an action plan powered by Groq LLM</p>
+        <h3>Schedule Builder</h3>
+        <p>AI-optimised daily plan based on your burnout score</p>
       </div>
       <div class="qc-arrow">›</div>
     </div>
+
+
   </div>
 
   <!-- ══ FOOD SCANNER ══ -->
@@ -784,17 +847,37 @@
     </div>
   </div>
 
-  <!-- ══ AI OPTIMIZER ══ -->
-  <div class="panel" id="panel-solve">
-    <div class="section-title">AI Optimizer</div>
-    <div class="section-sub">Same inputs as burnout check — get an LLM action plan</div>
 
+
+  <!-- ══ SCHEDULE BUILDER ══ -->
+  <div class="panel" id="panel-schedule">
+    <div class="section-title">Schedule Builder</div>
+    <div class="section-sub">AI builds your day around your burnout level</div>
+
+    <!-- Fixed Calendar Events -->
     <div class="card">
-      <div class="card-label">Quick Inputs</div>
+      <div class="card-label">Today's Fixed Events</div>
+      <div id="fixed-events-list">
+        <div class="sched-fixed-item">07:00–09:00 · Outwater Basketball</div>
+        <div class="sched-fixed-item">09:00–09:30 · Cabinet Meeting</div>
+        <div class="sched-fixed-item">11:30–12:50 · CS288</div>
+        <div class="sched-fixed-item">11:30–13:00 · Common Hour / E-Board</div>
+        <div class="sched-fixed-item">13:00–14:20 · YWCC Class</div>
+        <div class="sched-fixed-item">16:00–17:20 · CS Generative AI</div>
+      </div>
+    </div>
+
+    <!-- Task Input -->
+    <div class="card">
+      <div class="card-label">Tasks to Schedule</div>
+      <div class="field">
+        <label>Tasks (comma separated)</label>
+        <input type="text" id="s-tasks" placeholder="study CS288, emails, gym, project work…" value="study CS288, emails, gym, project work" />
+      </div>
       <div class="range-row">
         <label>Sleep hrs</label>
-        <input type="range" min="0" max="12" step="0.5" value="6" id="s-sleep" oninput="document.getElementById('vs-sleep').textContent=this.value">
-        <span class="range-val" id="vs-sleep">6</span>
+        <input type="range" min="0" max="12" step="0.5" value="5.5" id="s-sleep" oninput="document.getElementById('vs-sleep').textContent=this.value">
+        <span class="range-val" id="vs-sleep">5.5</span>
       </div>
       <div class="range-row">
         <label>Water glasses</label>
@@ -818,45 +901,54 @@
       </div>
       <div class="range-row">
         <label>Calendar hrs</label>
-        <input type="range" min="0" max="12" step="0.5" value="8" id="s-cal" oninput="document.getElementById('vs-cal').textContent=this.value">
-        <span class="range-val" id="vs-cal">8</span>
-      </div>
-      <div class="range-row">
-        <label>Bedtime hour</label>
-        <input type="range" min="20" max="30" step="1" value="24" id="s-bed" oninput="document.getElementById('vs-bed').textContent=(this.value%24)+':00'">
-        <span class="range-val" id="vs-bed">0:00</span>
-      </div>
-
-      <div class="field" style="margin-top:10px;">
-        <label>Tasks (comma separated)</label>
-        <input type="text" id="s-tasks" placeholder="study, gym, emails..." />
+        <input type="range" min="0" max="12" step="0.5" value="9" id="s-cal" oninput="document.getElementById('vs-cal').textContent=this.value">
+        <span class="range-val" id="vs-cal">9</span>
       </div>
     </div>
 
-    <button class="btn btn-primary" id="solve-btn" onclick="runOptimizer()">⚡ Get AI Action Plan</button>
+    <button class="btn btn-primary" onclick="buildSchedule()" id="sched-btn">✦ Build My Schedule</button>
 
-    <div id="solve-loading" style="display:none;">
-      <div class="loading"><div class="spinner"></div> Analyzing with Groq LLM...</div>
+    <!-- Loading -->
+    <div class="loading" id="sched-loading" style="display:none;">
+      <div class="spinner"></div>
+      <span>AI is planning your day…</span>
     </div>
 
-    <div class="card" id="solve-result" style="display:none; margin-top:16px;">
-      <div class="card-label">Summary</div>
-      <p id="llm-summary" style="font-size:0.9rem; line-height:1.65; color:#ccc; margin-bottom:18px;"></p>
+    <!-- Result -->
+    <div id="sched-result" style="display:none; margin-top:16px;">
 
-      <div class="action-group">
-        <div class="action-group-title">🟢 Do Now</div>
-        <div id="actions-now"></div>
-      </div>
-      <div class="action-group">
-        <div class="action-group-title">🔵 Next Few Hours</div>
-        <div id="actions-next"></div>
-      </div>
-      <div class="action-group">
-        <div class="action-group-title">🟠 Tonight</div>
-        <div id="actions-tonight"></div>
+      <!-- Burnout badge -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-label">Today's Burnout Reading</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:4px;">
+          <div id="sched-score-ring" style="position:relative;width:80px;height:80px;flex-shrink:0;">
+            <svg viewBox="0 0 80 80" width="80" height="80" style="transform:rotate(-90deg)">
+              <circle cx="40" cy="40" r="34" fill="none" stroke="var(--surface2)" stroke-width="7"/>
+              <circle id="sched-ring-fill" cx="40" cy="40" r="34" fill="none" stroke-width="7"
+                stroke-linecap="round"
+                stroke-dasharray="213.6"
+                stroke-dashoffset="213.6"
+                style="transition:stroke-dashoffset 1s ease,stroke 0.5s"/>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+              <span id="sched-score-num" style="font-family:'DM Serif Display',serif;font-size:1.5rem;line-height:1;">0</span>
+            </div>
+          </div>
+          <div>
+            <div id="sched-score-tag" style="font-size:1rem;font-weight:600;margin-bottom:4px;">—</div>
+            <div id="sched-score-advice" style="font-size:0.78rem;color:var(--muted);line-height:1.5;"></div>
+          </div>
+        </div>
       </div>
 
-      <div class="risk-note" id="risk-note"></div>
+      <!-- Timeline -->
+      <div class="card">
+        <div class="card-label">Your Optimised Day</div>
+        <div id="timeline-wrap"></div>
+      </div>
+
+      <!-- Export -->
+      <button class="btn btn-secondary" onclick="exportICS()" id="ics-btn" style="margin-top:4px;">⬇ Export to Google Calendar (.ics)</button>
     </div>
   </div>
 
@@ -870,7 +962,7 @@ function switchTab(id) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + id).classList.add('active');
   navBtns.forEach((b, i) => {
-    b.classList.toggle('active', ['home','food','burnout','solve'][i] === id);
+    b.classList.toggle('active', ['home','food','burnout','schedule'][i] === id);
   });
   if (id === 'food') initCamera();
 }
@@ -1058,64 +1150,229 @@ function showBurnoutResult(score, bd) {
   document.getElementById('burnout-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// ── AI OPTIMIZER ──────────────────────────────────────
-async function runOptimizer() {
-  const btn = document.getElementById('solve-btn');
+
+// ── SCHEDULE BUILDER ──────────────────────────────────
+
+// ---- Burnout scoring (mirrors burnoutScore.py) ----
+function sleepScoreSched(h) {
+  if (h < 4)  return 0.1;
+  if (h < 6)  return 0.1 + 0.15*(h-4);
+  if (h < 8)  return 0.4 + 0.25*(h-6);
+  if (h <= 9) return 0.9;
+  return 0.9 - 0.1*(h-9);
+}
+
+function burnoutForSched(sl, wa, br, mood, free, cal, tasks) {
+  const S = sleepScoreSched(sl);
+  const W = Math.min(1, wa/8);
+  const B = Math.min(1, br/60);
+  const E = (5 - mood) / 4;
+  const F = Math.min(1, free/60);
+  const tl = tasks.length ? tasks.filter(t=>!t.done).length / tasks.length : 0;
+  const C  = Math.min(1, 0.5*(cal/10) + 0.5*tl);
+  return 100*(0.28*(1-S)+0.14*(1-W)+0.16*C+0.14*E+0.10*(1-B)+0.05*(1-F)+0.04);
+}
+
+// ---- Fixed calendar events (mirrors buildScheduleTemplate.py) ----
+function getFixedEvents() {
+  return [
+    {name:"Outwater Basketball", start:"07:00", end:"09:00"},
+    {name:"Cabinet Meeting",      start:"09:00", end:"09:30"},
+    {name:"CS288",                start:"11:30", end:"12:50"},
+    {name:"Common Hour / E-Board",start:"11:30", end:"13:00"},
+    {name:"YWCC Class",           start:"13:00", end:"14:20"},
+    {name:"CS Generative AI",     start:"16:00", end:"17:20"},
+  ];
+}
+
+function toMin(t) { const [h,m]=t.split(':').map(Number); return h*60+m; }
+function toTime(m) { return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
+
+function computeFreeBlocks(events) {
+  const sorted = [...events].sort((a,b)=>toMin(a.start)-toMin(b.start));
+  const startDay=6*60, endDay=23*60;
+  const free=[]; let cur=startDay;
+  for (const e of sorted) {
+    const s=toMin(e.start), t=toMin(e.end);
+    if (s>cur) free.push([cur,s]);
+    cur=Math.max(cur,t);
+  }
+  if (cur<endDay) free.push([cur,endDay]);
+  return free;
+}
+
+// ---- State for export ----
+let lastSchedule = [];
+
+async function buildSchedule() {
+  const btn = document.getElementById('sched-btn');
   btn.disabled = true;
-  document.getElementById('solve-result').style.display = 'none';
-  document.getElementById('solve-loading').style.display = 'block';
+  document.getElementById('sched-loading').style.display = 'flex';
+  document.getElementById('sched-result').style.display = 'none';
+
+  const sl   = +document.getElementById('s-sleep').value;
+  const wa   = +document.getElementById('s-water').value;
+  const br   = +document.getElementById('s-break').value;
+  const mood = +document.getElementById('s-mood').value;
+  const free = +document.getElementById('s-free').value;
+  const cal  = +document.getElementById('s-cal').value;
 
   const rawTasks = document.getElementById('s-tasks').value;
-  const tasks = rawTasks.split(',').filter(t=>t.trim()).map(t=>({name:t.trim(),done:false}));
+  const tasks = rawTasks.split(',').filter(t=>t.trim()).map(t=>({name:t.trim(), done:false}));
 
-  const payload = {
-    sleep_hours:       +document.getElementById('s-sleep').value,
-    bedtime_hour:      +document.getElementById('s-bed').value % 24,
-    water_glasses:     +document.getElementById('s-water').value,
-    break_minutes:     +document.getElementById('s-break').value,
-    mood:              +document.getElementById('s-mood').value,
-    free_time_minutes: +document.getElementById('s-free').value,
-    calendar_hours:    +document.getElementById('s-cal').value,
-    screen_time_hours: 6,
-    tasks
+  const burnout = burnoutForSched(sl, wa, br, mood, free, cal, tasks);
+  const events  = getFixedEvents();
+  const freeBlocks = computeFreeBlocks(events);
+
+  // Show burnout ring immediately
+  renderSchedBurnout(burnout);
+
+  // Build prompt for AI scheduler
+  const systemPrompt = `You are a deterministic scheduling engine.
+Return ONLY valid JSON — no markdown, no explanation, nothing else.
+
+Rules:
+- Use ONLY the provided free blocks (do not create events outside them)
+- Do NOT modify or mention the fixed calendar events
+- Fill free time with the given tasks and break periods
+- If burnout > 70: reduce workload heavily, insert long breaks, prioritize rest
+- If burnout > 60: insert 10-15 min breaks between tasks
+- If burnout <= 60: schedule tasks efficiently with short breaks
+- No overlaps allowed
+- Keep tasks realistic in duration (15–60 min each)
+
+Output format (strict):
+{
+  "schedule": [
+    { "start": "HH:MM", "end": "HH:MM", "title": "string", "type": "task|break|idle" }
+  ]
+}`;
+
+  const userPayload = {
+    burnout: Math.round(burnout * 10) / 10,
+    tasks: tasks.map(t=>t.name),
+    free_blocks: freeBlocks.map(([s,e])=>({ start: toTime(s), end: toTime(e) }))
   };
 
   try {
-    const res  = await fetch('/optimize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: "user", content: JSON.stringify(userPayload) }]
+      })
     });
     const data = await res.json();
+    const raw = data.content.map(c=>c.text||'').join('');
 
-    if (data.error) throw new Error(data.error);
+    let plan;
+    try { plan = JSON.parse(raw); }
+    catch {
+      const m = raw.match(/\{[\s\S]*\}/);
+      plan = m ? JSON.parse(m[0]) : { schedule: [] };
+    }
 
-    const llm = data.llm_output;
-    document.getElementById('llm-summary').textContent  = llm.summary || '—';
-    document.getElementById('risk-note').textContent    = llm.risk_note || '';
-
-    const renderActions = (id, items, cls) => {
-      document.getElementById(id).innerHTML = (items||[]).map(a => `
-        <div class="action-item ${cls}">
-          <div class="action-dot ${cls}"></div>
-          <span>${a}</span>
-        </div>`).join('') || '<div style="color:var(--muted);font-size:0.8rem;padding:6px 0;">None</div>';
-    };
-
-    renderActions('actions-now',     llm.priority_actions?.now,     '');
-    renderActions('actions-next',    llm.priority_actions?.next,    'next');
-    renderActions('actions-tonight', llm.priority_actions?.tonight, 'tonight');
-
-    document.getElementById('solve-result').style.display = 'block';
+    lastSchedule = plan.schedule || [];
+    renderTimeline(lastSchedule, events);
+    document.getElementById('sched-result').style.display = 'block';
+    document.getElementById('sched-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   } catch(e) {
-    document.getElementById('solve-result').style.display = 'block';
-    document.getElementById('llm-summary').textContent = 'Error: ' + e.message + '. Make sure your Flask server is running with the /optimize route.';
+    alert('Error building schedule: ' + e.message);
   }
 
-  document.getElementById('solve-loading').style.display = 'none';
+  document.getElementById('sched-loading').style.display = 'none';
   btn.disabled = false;
 }
+
+function renderSchedBurnout(score) {
+  const circ = 2 * Math.PI * 34; // 213.6
+  const offset = circ * (1 - score/100);
+  const ring = document.getElementById('sched-ring-fill');
+  ring.style.strokeDashoffset = offset;
+  const color = score < 30 ? '#3be8a0' : score < 60 ? '#e8913b' : '#e85b3b';
+  ring.style.stroke = color;
+
+  let cur = 0;
+  const rounded = Math.round(score);
+  const iv = setInterval(()=>{
+    cur = Math.min(cur+2, rounded);
+    document.getElementById('sched-score-num').textContent = cur;
+    if (cur >= rounded) clearInterval(iv);
+  }, 16);
+
+  const label = score < 30 ? 'Not Burnout' : score < 60 ? 'Mild Burnout' : score < 80 ? 'Medium Burnout' : 'Severe Burnout';
+  const tag = document.getElementById('sched-score-tag');
+  tag.textContent = label;
+  tag.style.color = color;
+
+  const advice = score > 70
+    ? 'Heavy load detected — AI will prioritise rest and reduce tasks today.'
+    : score > 60
+    ? 'Elevated stress — breaks have been added between your tasks.'
+    : 'You\'re in good shape. Schedule is productivity-focused.';
+  document.getElementById('sched-score-advice').textContent = advice;
+}
+
+function renderTimeline(schedule, fixedEvents) {
+  // Merge fixed + AI schedule and sort by start time
+  const fixed = fixedEvents.map(e=>({...e, title:e.name, type:'fixed'}));
+  const all = [...fixed, ...schedule].sort((a,b)=>toMin(a.start)-toMin(b.start));
+
+  const wrap = document.getElementById('timeline-wrap');
+  wrap.innerHTML = all.map((item, i) => {
+    const type = item.type || 'task';
+    const dotClass = type === 'fixed' ? 'fixed' : type === 'break' ? 'break' : type === 'idle' ? 'idle' : 'task';
+    return `
+    <div class="timeline-item" style="animation-delay:${i*40}ms">
+      <div class="tl-time">${item.start} – ${item.end}</div>
+      <div class="tl-dot ${dotClass}"></div>
+      <div class="tl-body">
+        <div class="tl-title">${item.title || item.name}</div>
+        <div class="tl-type ${dotClass}">${type}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function exportICS() {
+  const fixedEvents = getFixedEvents();
+  const all = [...fixedEvents.map(e=>({...e, title:e.name})), ...lastSchedule];
+  const date = '20260425';
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//CalmCore//BurnoutOptimizer//EN'
+  ];
+
+  all.forEach((item, i) => {
+    const title = item.title || item.name || 'Task';
+    const [sh,sm] = (item.start||'00:00').split(':').map(Number);
+    const [eh,em] = (item.end||'00:00').split(':').map(Number);
+    const fmtStart = `${date}T${String(sh).padStart(2,'0')}${String(sm).padStart(2,'0')}00`;
+    const fmtEnd   = `${date}T${String(eh).padStart(2,'0')}${String(em).padStart(2,'0')}00`;
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:calmcore-${i}-${Date.now()}@burnout`,
+      `DTSTART:${fmtStart}`,
+      `DTEND:${fmtEnd}`,
+      `SUMMARY:${title}`,
+      'END:VEVENT'
+    );
+  });
+
+  lines.push('END:VCALENDAR');
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'calmcore_schedule.ics';
+  a.click();
+}
+
 </script>
 </body>
 </html>
