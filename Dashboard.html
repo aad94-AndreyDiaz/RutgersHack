@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>CalmCore — Wellness Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #080b10;
+      --surface:   #0e1420;
+      --surface2:  #141c2e;
+      --border:    #1e2d45;
+      --accent:    #3be8a0;
+      --accent2:   #3b9ee8;
+      --warn:      #e8913b;
+      --danger:    #e85b3b;
+      --text:      #e8edf5;
+      --muted:     #5a6a80;
+      --glow:      0 0 40px #3be8a020;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── BACKGROUND GRID ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+      background: #080b10cc;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.5rem;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+
+    .logo span { color: var(--text); }
+
+    .status-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      padding: 5px 12px;
+      border-radius: 99px;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+
+    /* ── NAV TABS ── */
+    nav {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      gap: 4px;
+      padding: 12px 28px;
+      border-bottom: 1px solid var(--border);
+      background: #080b10aa;
+      backdrop-filter: blur(8px);
+      overflow-x: auto;
+    }
+
+    nav button {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+      letter-spacing: 0.3px;
+    }
+
+    nav button.active {
+      background: var(--surface2);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    nav button:hover:not(.active) { color: var(--text); }
+
+    /* ── MAIN ── */
+    main {
+      position: relative;
+      z-index: 5;
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+
+    /* ── PANELS ── */
+    .panel { display: none; }
+    .panel.active { display: block; animation: fadeUp 0.35s ease; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── SECTION TITLE ── */
+    .section-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.6rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .section-sub {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* ── FORM ELEMENTS ── */
+    .field { margin-bottom: 14px; }
+
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+
+    .field input[type="number"],
+    .field input[type="text"],
+    .field select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.95rem;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+
+    .field input:focus,
+    .field select:focus { border-color: var(--accent); }
+
+    /* toggle */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toggle-row:last-child { border-bottom: none; }
+
+    .toggle-row span {
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    .toggle {
+      position: relative;
+      width: 42px;
+      height: 24px;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      top: 3px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    input:checked + .slider { background: var(--accent)22; border-color: var(--accent); }
+    input:checked + .slider::before { transform: translateX(18px); background: var(--accent); }
+
+    /* ── SLIDER INPUT ── */
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .range-row label { font-size: 0.8rem; color: var(--muted); min-width: 90px; }
+
+    .range-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      height: 4px;
+    }
+
+    .range-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--accent);
+      min-width: 28px;
+      text-align: right;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #080b10;
+    }
+
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      margin-top: 10px;
+    }
+
+    /* ── BURNOUT SCORE DISPLAY ── */
+    .score-display {
+      text-align: center;
+      padding: 28px 0 18px;
+    }
+
+    .score-ring {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 16px;
+    }
+
+    .score-ring svg { transform: rotate(-90deg); }
+
+    .score-ring .track {
+      fill: none;
+      stroke: var(--surface2);
+      stroke-width: 10;
+    }
+
+    .score-ring .fill {
+      fill: none;
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-dasharray: 339.3;
+      stroke-dashoffset: 339.3;
+      transition: stroke-dashoffset 1s ease, stroke 0.5s;
+    }
+
+    .score-number {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .score-number .num {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.4rem;
+      line-height: 1;
+    }
+
+    .score-number .lbl {
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 1px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .score-tag {
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 6px 18px;
+      border-radius: 99px;
+      display: inline-block;
+    }
+
+    /* ── BREAKDOWN BARS ── */
+    .breakdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .breakdown-item .bi-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      min-width: 100px;
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.8s ease;
+    }
+
+    .bi-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      min-width: 32px;
+      text-align: right;
+    }
+
+    /* ── LLM OUTPUT ── */
+    .action-group { margin-bottom: 16px; }
+
+    .action-group-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .action-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: 10px;
+      margin-bottom: 6px;
+      font-size: 0.88rem;
+      border-left: 3px solid var(--accent);
+    }
+
+    .action-item.next  { border-left-color: var(--accent2); }
+    .action-item.tonight { border-left-color: var(--warn); }
+
+    .action-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .action-dot.next    { background: var(--accent2); }
+    .action-dot.tonight { background: var(--warn); }
+
+    .risk-note {
+      background: #e8913b15;
+      border: 1px solid #e8913b33;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.83rem;
+      color: var(--warn);
+      margin-top: 8px;
+    }
+
+    /* ── FOOD SCANNER ── */
+    #camera-wrap {
+      position: relative;
+      width: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--surface2);
+      aspect-ratio: 4/3;
+      border: 1px solid var(--border);
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    #scan-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      top: 0;
+      display: none;
+      animation: scandown 1.2s linear infinite;
+    }
+
+    @keyframes scandown {
+      from { top: 0; } to { top: 100%; }
+    }
+
+    #corner-tl, #corner-tr, #corner-bl, #corner-br {
+      position: absolute;
+      width: 20px; height: 20px;
+      border-color: var(--accent);
+      border-style: solid;
+      pointer-events: none;
+    }
+    #corner-tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+    #corner-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+    #corner-bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+    #corner-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+    .food-result-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.5rem;
+      color: var(--accent);
+      margin-bottom: 2px;
+    }
+
+    .food-confidence {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .nutrition-badge {
+      display: inline-block;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 0.8rem;
+      margin: 3px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .error-msg {
+      color: var(--danger);
+      font-size: 0.82rem;
+      margin-top: 10px;
+      display: none;
+    }
+
+    canvas { display: none; }
+
+    /* ── LOADING ── */
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── HOME ── */
+    .home-hero {
+      text-align: center;
+      padding: 32px 0 28px;
+    }
+
+    .home-hero .big {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.4rem;
+      line-height: 1.15;
+      margin-bottom: 10px;
+    }
+
+    .home-hero .big em {
+      color: var(--accent);
+      font-style: italic;
+    }
+
+    .home-hero p {
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 320px;
+      margin: 0 auto 28px;
+    }
+
+    .quick-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .quick-card:hover {
+      border-color: var(--accent);
+      background: var(--surface2);
+    }
+
+    .qc-icon {
+      font-size: 1.6rem;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+
+    .qc-text h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 2px; }
+    .qc-text p  { font-size: 0.78rem; color: var(--muted); }
+
+    .qc-arrow { margin-left: auto; color: var(--muted); font-size: 1rem; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Calm<span>Core</span></div>
+  <div class="status-pill">WELLNESS OS</div>
+</header>
+
+<nav>
+  <button class="active" onclick="switchTab('home')">Home</button>
+  <button onclick="switchTab('food')">🍽 Food Scanner</button>
+  <button onclick="switchTab('burnout')">📊 Burnout Check</button>
+  <button onclick="switchTab('solve')">⚡ AI Optimizer</button>
+</nav>
+
+<main>
+
+  <!-- ══ HOME ══ -->
+  <div class="panel active" id="panel-home">
+    <div class="home-hero">
+      <div class="big">Your <em>daily</em><br>wellness engine.</div>
+      <p>Track burnout, scan food, and get AI-powered recovery plans — all in one place.</p>
+    </div>
+
+    <div class="quick-card" onclick="switchTab('food')">
+      <div class="qc-icon">🍽</div>
+      <div class="qc-text">
+        <h3>Food Scanner</h3>
+        <p>Point camera at your meal for instant nutrition info</p>
+      </div>
+      <div class="qc-arrow">›</div>
+    </div>
+
+    <div class="quick-card" onclick="switchTab('burnout')">
+      <div class="qc-icon">📊</div>
+      <div class="qc-text">
+        <h3>Burnout Score</h3>
+        <p>Log today's data and see your wellness breakdown</p>
+      </div>
+      <div class="qc-arrow">›</div>
+    </div>
+
+    <div class="quick-card" onclick="switchTab('solve')">
+      <div class="qc-icon">⚡</div>
+      <div class="qc-text">
+        <h3>AI Optimizer</h3>
+        <p>Get an action plan powered by Groq LLM</p>
+      </div>
+      <div class="qc-arrow">›</div>
+    </div>
+  </div>
+
+  <!-- ══ FOOD SCANNER ══ -->
+  <div class="panel" id="panel-food">
+    <div class="section-title">Food Scanner</div>
+    <div class="section-sub">Point your camera at food and tap scan</div>
+
+    <div id="camera-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <div id="scan-line"></div>
+      <div id="corner-tl"></div>
+      <div id="corner-tr"></div>
+      <div id="corner-bl"></div>
+      <div id="corner-br"></div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    <div class="error-msg" id="cam-error"></div>
+
+    <br>
+    <button class="btn btn-primary" id="scan-btn" onclick="scanFood()">📸 SCAN FOOD</button>
+
+    <div class="card" id="food-result" style="display:none; margin-top:16px;">
+      <div class="card-label">Result</div>
+      <div class="food-result-name" id="food-name">—</div>
+      <div class="food-confidence" id="food-conf"></div>
+      <div id="food-nutrition"></div>
+    </div>
+  </div>
+
+  <!-- ══ BURNOUT CHECK ══ -->
+  <div class="panel" id="panel-burnout">
+    <div class="section-title">Burnout Check</div>
+    <div class="section-sub">Log your day and see your wellness score</div>
+
+    <div class="card">
+      <div class="card-label">Daily Inputs</div>
+
+      <div class="range-row">
+        <label>Sleep hrs</label>
+        <input type="range" min="0" max="12" step="0.5" value="7" id="b-sleep" oninput="document.getElementById('v-sleep').textContent=this.value">
+        <span class="range-val" id="v-sleep">7</span>
+      </div>
+      <div class="range-row">
+        <label>Water glasses</label>
+        <input type="range" min="0" max="12" step="1" value="4" id="b-water" oninput="document.getElementById('v-water').textContent=this.value">
+        <span class="range-val" id="v-water">4</span>
+      </div>
+      <div class="range-row">
+        <label>Break mins</label>
+        <input type="range" min="0" max="120" step="5" value="20" id="b-break" oninput="document.getElementById('v-break').textContent=this.value">
+        <span class="range-val" id="v-break">20</span>
+      </div>
+      <div class="range-row">
+        <label>Mood (1–5)</label>
+        <input type="range" min="1" max="5" step="1" value="3" id="b-mood" oninput="document.getElementById('v-mood').textContent=this.value">
+        <span class="range-val" id="v-mood">3</span>
+      </div>
+      <div class="range-row">
+        <label>Free time mins</label>
+        <input type="range" min="0" max="180" step="5" value="30" id="b-free" oninput="document.getElementById('v-free').textContent=this.value">
+        <span class="range-val" id="v-free">30</span>
+      </div>
+      <div class="range-row">
+        <label>Calendar hrs</label>
+        <input type="range" min="0" max="12" step="0.5" value="5" id="b-cal" oninput="document.getElementById('v-cal').textContent=this.value">
+        <span class="range-val" id="v-cal">5</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Wellness Habits</div>
+      <div class="toggle-row">
+        <span>Hygiene done</span>
+        <label class="toggle"><input type="checkbox" id="b-hygiene" checked><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Took medication</span>
+        <label class="toggle"><input type="checkbox" id="b-meds"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Took vitamins</span>
+        <label class="toggle"><input type="checkbox" id="b-vitamins"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Peer check-in done</span>
+        <label class="toggle"><input type="checkbox" id="b-checkin"><span class="slider"></span></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Tasks (comma separated)</div>
+      <div class="field">
+        <input type="text" id="b-tasks" placeholder="study, gym, emails, project..." />
+      </div>
+      <div class="field">
+        <label>Peer mode</label>
+        <select id="b-peer">
+          <option value="none">None</option>
+          <option value="setup">Setup</option>
+          <option value="daily">Daily</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="calcBurnout()">Calculate Burnout Score</button>
+
+    <!-- Result -->
+    <div class="card" id="burnout-result" style="display:none; margin-top:16px;">
+      <div class="score-display">
+        <div class="score-ring">
+          <svg viewBox="0 0 120 120" width="140" height="140">
+            <circle class="track" cx="60" cy="60" r="54"/>
+            <circle class="fill" id="score-ring-fill" cx="60" cy="60" r="54"/>
+          </svg>
+          <div class="score-number">
+            <span class="num" id="score-num">0</span>
+            <span class="lbl">/ 100</span>
+          </div>
+        </div>
+        <div class="score-tag" id="score-tag">—</div>
+      </div>
+
+      <div class="card-label" style="margin-top:20px;">Breakdown</div>
+      <div id="breakdown-bars"></div>
+    </div>
+  </div>
+
+  <!-- ══ AI OPTIMIZER ══ -->
+  <div class="panel" id="panel-solve">
+    <div class="section-title">AI Optimizer</div>
+    <div class="section-sub">Same inputs as burnout check — get an LLM action plan</div>
+
+    <div class="card">
+      <div class="card-label">Quick Inputs</div>
+      <div class="range-row">
+        <label>Sleep hrs</label>
+        <input type="range" min="0" max="12" step="0.5" value="6" id="s-sleep" oninput="document.getElementById('vs-sleep').textContent=this.value">
+        <span class="range-val" id="vs-sleep">6</span>
+      </div>
+      <div class="range-row">
+        <label>Water glasses</label>
+        <input type="range" min="0" max="12" step="1" value="3" id="s-water" oninput="document.getElementById('vs-water').textContent=this.value">
+        <span class="range-val" id="vs-water">3</span>
+      </div>
+      <div class="range-row">
+        <label>Break mins</label>
+        <input type="range" min="0" max="120" step="5" value="10" id="s-break" oninput="document.getElementById('vs-break').textContent=this.value">
+        <span class="range-val" id="vs-break">10</span>
+      </div>
+      <div class="range-row">
+        <label>Mood (1–5)</label>
+        <input type="range" min="1" max="5" step="1" value="2" id="s-mood" oninput="document.getElementById('vs-mood').textContent=this.value">
+        <span class="range-val" id="vs-mood">2</span>
+      </div>
+      <div class="range-row">
+        <label>Free time mins</label>
+        <input type="range" min="0" max="180" step="5" value="15" id="s-free" oninput="document.getElementById('vs-free').textContent=this.value">
+        <span class="range-val" id="vs-free">15</span>
+      </div>
+      <div class="range-row">
+        <label>Calendar hrs</label>
+        <input type="range" min="0" max="12" step="0.5" value="8" id="s-cal" oninput="document.getElementById('vs-cal').textContent=this.value">
+        <span class="range-val" id="vs-cal">8</span>
+      </div>
+      <div class="range-row">
+        <label>Bedtime hour</label>
+        <input type="range" min="20" max="30" step="1" value="24" id="s-bed" oninput="document.getElementById('vs-bed').textContent=(this.value%24)+':00'">
+        <span class="range-val" id="vs-bed">0:00</span>
+      </div>
+
+      <div class="field" style="margin-top:10px;">
+        <label>Tasks (comma separated)</label>
+        <input type="text" id="s-tasks" placeholder="study, gym, emails..." />
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="solve-btn" onclick="runOptimizer()">⚡ Get AI Action Plan</button>
+
+    <div id="solve-loading" style="display:none;">
+      <div class="loading"><div class="spinner"></div> Analyzing with Groq LLM...</div>
+    </div>
+
+    <div class="card" id="solve-result" style="display:none; margin-top:16px;">
+      <div class="card-label">Summary</div>
+      <p id="llm-summary" style="font-size:0.9rem; line-height:1.65; color:#ccc; margin-bottom:18px;"></p>
+
+      <div class="action-group">
+        <div class="action-group-title">🟢 Do Now</div>
+        <div id="actions-now"></div>
+      </div>
+      <div class="action-group">
+        <div class="action-group-title">🔵 Next Few Hours</div>
+        <div id="actions-next"></div>
+      </div>
+      <div class="action-group">
+        <div class="action-group-title">🟠 Tonight</div>
+        <div id="actions-tonight"></div>
+      </div>
+
+      <div class="risk-note" id="risk-note"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── TAB SWITCHING ──────────────────────────────────────
+const navBtns = document.querySelectorAll('nav button');
+
+function switchTab(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  navBtns.forEach((b, i) => {
+    b.classList.toggle('active', ['home','food','burnout','solve'][i] === id);
+  });
+  if (id === 'food') initCamera();
+}
+
+// ── FOOD SCANNER ──────────────────────────────────────
+const video   = document.getElementById('video');
+const canvas  = document.getElementById('canvas');
+const scanBtn = document.getElementById('scan-btn');
+const camErr  = document.getElementById('cam-error');
+let cameraStarted = false;
+
+async function initCamera() {
+  if (cameraStarted) return;
+  cameraStarted = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } }
+    });
+    video.srcObject = stream;
+  } catch(e) {
+    camErr.style.display = 'block';
+    camErr.textContent = 'Camera access denied — please allow camera and reload.';
+  }
+}
+
+async function scanFood() {
+  scanBtn.disabled = true;
+  scanBtn.textContent = 'Scanning...';
+  document.getElementById('food-result').style.display = 'none';
+  camErr.style.display = 'none';
+  document.getElementById('scan-line').style.display = 'block';
+
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+  try {
+    const res  = await fetch('/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageData })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    document.getElementById('food-name').textContent = data.name;
+    document.getElementById('food-conf').textContent = `${data.confidence}% confidence match`;
+
+    const badges = data.nutrition.split('|').map(p =>
+      `<span class="nutrition-badge">${p.trim()}</span>`
+    ).join('');
+    document.getElementById('food-nutrition').innerHTML = badges;
+    document.getElementById('food-result').style.display = 'block';
+
+  } catch(e) {
+    camErr.style.display = 'block';
+    camErr.textContent = 'Error: ' + e.message;
+  }
+
+  document.getElementById('scan-line').style.display = 'none';
+  scanBtn.disabled = false;
+  scanBtn.textContent = '📸 SCAN FOOD';
+}
+
+// ── BURNOUT CALCULATOR ─────────────────────────────────
+function sleepScore(h) {
+  if (h < 4)  return 0.1;
+  if (h < 6)  return 0.1 + 0.15*(h-4);
+  if (h < 8)  return 0.4 + 0.25*(h-6);
+  if (h <= 9) return 0.9;
+  return 0.9 - 0.1*(h-9);
+}
+const waterScore  = g => Math.min(1, g/8);
+const breakScore  = m => Math.min(1, m/60);
+const hygScore    = d => d ? 1.0 : 0.3;
+const emoStrain   = m => (5-m)/4;
+const freeScore   = t => Math.min(1, t/60);
+const peerScore   = (mode, done) =>
+  mode==='none' ? 1 : mode==='setup' ? (done?1:0.6) : (done?1:0);
+const healthScore = (meds, vits) => (meds?0.6:0)+(vits?0.4:0);
+
+function taskLoad(tasks) {
+  if (!tasks.length) return 0;
+  const undone = tasks.filter(t=>!t.done).length;
+  return undone/tasks.length;
+}
+
+function calcBurnout() {
+  const h    = +document.getElementById('b-sleep').value;
+  const w    = +document.getElementById('b-water').value;
+  const brk  = +document.getElementById('b-break').value;
+  const mood = +document.getElementById('b-mood').value;
+  const free = +document.getElementById('b-free').value;
+  const cal  = +document.getElementById('b-cal').value;
+  const hyg  = document.getElementById('b-hygiene').checked;
+  const meds = document.getElementById('b-meds').checked;
+  const vits = document.getElementById('b-vitamins').checked;
+  const chk  = document.getElementById('b-checkin').checked;
+  const mode = document.getElementById('b-peer').value;
+
+  const rawTasks = document.getElementById('b-tasks').value;
+  const tasks = rawTasks.split(',').filter(t=>t.trim()).map(t=>({name:t.trim(),done:false}));
+
+  const S = sleepScore(h);
+  const W = waterScore(w);
+  const B = breakScore(brk);
+  const H = hygScore(hyg);
+  const E = emoStrain(mood);
+  const F = freeScore(free);
+  const P = peerScore(mode, chk);
+  const M = healthScore(meds, vits);
+  const tl = taskLoad(tasks);
+  const C = Math.min(1, 0.5*(cal/10) + 0.5*tl);
+
+  const score = 100*(
+    0.28*(1-S) + 0.14*(1-W) + 0.16*C + 0.14*E +
+    0.10*(1-B) + 0.05*(1-F) + 0.05*(1-H) +
+    0.04*(1-P) + 0.04*(1-M)
+  );
+
+  showBurnoutResult(score, {S,W,B,H,E,F,C,P,M});
+}
+
+function showBurnoutResult(score, bd) {
+  const rounded = Math.round(score);
+  document.getElementById('burnout-result').style.display = 'block';
+
+  // ring animation
+  const circ = 2 * Math.PI * 54; // 339.3
+  const offset = circ * (1 - score/100);
+  const ring = document.getElementById('score-ring-fill');
+  ring.style.strokeDashoffset = offset;
+  ring.style.stroke =
+    score < 30 ? '#3be8a0' :
+    score < 60 ? '#e8913b' :
+    score < 80 ? '#e8913b' : '#e85b3b';
+
+  // number count-up
+  let cur = 0;
+  const interval = setInterval(() => {
+    cur = Math.min(cur + 2, rounded);
+    document.getElementById('score-num').textContent = cur;
+    if (cur >= rounded) clearInterval(interval);
+  }, 16);
+
+  // tag
+  const tag = document.getElementById('score-tag');
+  const label =
+    score < 30 ? 'Not Burnout' :
+    score < 60 ? 'Mild Burnout' :
+    score < 80 ? 'Medium Burnout' : 'Severe Burnout';
+  tag.textContent = label;
+  tag.style.background =
+    score < 30 ? '#3be8a015' :
+    score < 60 ? '#e8913b15' : '#e85b3b15';
+  tag.style.color =
+    score < 30 ? '#3be8a0' :
+    score < 60 ? '#e8913b' : '#e85b3b';
+
+  // breakdown bars
+  const items = [
+    { label: 'Sleep',       val: bd.S },
+    { label: 'Hydration',   val: bd.W },
+    { label: 'Breaks',      val: bd.B },
+    { label: 'Mood',        val: 1-bd.E },
+    { label: 'Free Time',   val: bd.F },
+    { label: 'Hygiene',     val: bd.H },
+    { label: 'Cog. Load',   val: 1-bd.C },
+    { label: 'Peer',        val: bd.P },
+    { label: 'Health Supp', val: bd.M },
+  ];
+
+  const container = document.getElementById('breakdown-bars');
+  container.innerHTML = items.map(it => `
+    <div class="breakdown-item">
+      <span class="bi-label">${it.label}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${Math.round(it.val*100)}%"></div>
+      </div>
+      <span class="bi-val">${Math.round(it.val*100)}%</span>
+    </div>
+  `).join('');
+
+  document.getElementById('burnout-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── AI OPTIMIZER ──────────────────────────────────────
+async function runOptimizer() {
+  const btn = document.getElementById('solve-btn');
+  btn.disabled = true;
+  document.getElementById('solve-result').style.display = 'none';
+  document.getElementById('solve-loading').style.display = 'block';
+
+  const rawTasks = document.getElementById('s-tasks').value;
+  const tasks = rawTasks.split(',').filter(t=>t.trim()).map(t=>({name:t.trim(),done:false}));
+
+  const payload = {
+    sleep_hours:       +document.getElementById('s-sleep').value,
+    bedtime_hour:      +document.getElementById('s-bed').value % 24,
+    water_glasses:     +document.getElementById('s-water').value,
+    break_minutes:     +document.getElementById('s-break').value,
+    mood:              +document.getElementById('s-mood').value,
+    free_time_minutes: +document.getElementById('s-free').value,
+    calendar_hours:    +document.getElementById('s-cal').value,
+    screen_time_hours: 6,
+    tasks
+  };
+
+  try {
+    const res  = await fetch('/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    const llm = data.llm_output;
+    document.getElementById('llm-summary').textContent  = llm.summary || '—';
+    document.getElementById('risk-note').textContent    = llm.risk_note || '';
+
+    const renderActions = (id, items, cls) => {
+      document.getElementById(id).innerHTML = (items||[]).map(a => `
+        <div class="action-item ${cls}">
+          <div class="action-dot ${cls}"></div>
+          <span>${a}</span>
+        </div>`).join('') || '<div style="color:var(--muted);font-size:0.8rem;padding:6px 0;">None</div>';
+    };
+
+    renderActions('actions-now',     llm.priority_actions?.now,     '');
+    renderActions('actions-next',    llm.priority_actions?.next,    'next');
+    renderActions('actions-tonight', llm.priority_actions?.tonight, 'tonight');
+
+    document.getElementById('solve-result').style.display = 'block';
+
+  } catch(e) {
+    document.getElementById('solve-result').style.display = 'block';
+    document.getElementById('llm-summary').textContent = 'Error: ' + e.message + '. Make sure your Flask server is running with the /optimize route.';
+  }
+
+  document.getElementById('solve-loading').style.display = 'none';
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
