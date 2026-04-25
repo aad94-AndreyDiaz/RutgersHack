@@ -1,6 +1,7 @@
 import json
 import requests
 import re
+from datetime import datetime, timedelta
 
 # =========================================================
 # STATE
@@ -10,7 +11,7 @@ state_memory = {
 }
 
 # =========================================================
-# SCORING (your system simplified but intact)
+# SCORING (UNCHANGED CORE MODEL)
 # =========================================================
 def sleep_score(h): return min(1.0, max(0.1, h / 8))
 def water_score(g): return min(1.0, g / 8)
@@ -20,7 +21,11 @@ def free_time_score(t): return min(1.0, t / 60)
 
 def cognitive_load(data):
     unfinished = sum(1 for t in data["tasks"] if not t["done"])
-    return min(1.0, 0.5 * (data["calendar_hours"]/10) + 0.5 * unfinished / max(1, len(data["tasks"])))
+    return min(
+        1.0,
+        0.5 * (data["calendar_hours"] / 10)
+        + 0.5 * unfinished / max(1, len(data["tasks"]))
+    )
 
 def burnout_engine(data):
     S = sleep_score(data["sleep_hours"])
@@ -30,7 +35,7 @@ def burnout_engine(data):
     F = free_time_score(data["free_time_minutes"])
     C = cognitive_load(data)
 
-    burnout = 100 * (
+    return 100 * (
         0.30*(1-S) +
         0.14*(1-W) +
         0.20*C +
@@ -38,10 +43,9 @@ def burnout_engine(data):
         0.10*(1-B) +
         0.08*(1-F)
     )
-    return burnout
 
 # =========================================================
-# CALENDAR (your messy input → structured fixed blocks)
+# CALENDAR INPUT (FIXED EVENTS)
 # =========================================================
 def build_events():
     return [
@@ -58,26 +62,28 @@ def build_events():
 # TIME HELPERS
 # =========================================================
 def to_min(t):
-    h,m = map(int,t.split(":"))
-    return h*60+m
+    h, m = map(int, t.split(":"))
+    return h * 60 + m
 
 def to_time(m):
     return f"{m//60:02d}:{m%60:02d}"
 
 # =========================================================
-# FREE BLOCK GENERATION (CRITICAL FIX)
+# FREE BLOCKS
 # =========================================================
 def compute_free_blocks(events):
     events = sorted(events, key=lambda x: to_min(x["start"]))
-    start_day, end_day = 6*60, 23*60
+    start_day, end_day = 6 * 60, 23 * 60
 
     free = []
     cur = start_day
 
     for e in events:
         s, t = to_min(e["start"]), to_min(e["end"])
+
         if s > cur:
             free.append((cur, s))
+
         cur = max(cur, t)
 
     if cur < end_day:
@@ -86,13 +92,12 @@ def compute_free_blocks(events):
     return free
 
 # =========================================================
-# GROQ
+# GROQ API
 # =========================================================
 GROQ_API_KEY = "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"
 URL = "https://api.groq.com/openai/v1/chat/completions"
 
 def groq_call(payload, system_prompt):
-
     r = requests.post(
         URL,
         headers={
@@ -102,17 +107,16 @@ def groq_call(payload, system_prompt):
         json={
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {"role":"system","content":system_prompt},
-                {"role":"user","content":json.dumps(payload)}
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(payload)}
             ],
-            "temperature":0.2
+            "temperature": 0.2
         }
     )
-
     return r.json()["choices"][0]["message"]["content"]
 
 # =========================================================
-# JSON SAFETY
+# JSON PARSER SAFETY
 # =========================================================
 def extract_json(text):
     try:
@@ -127,7 +131,7 @@ def extract_json(text):
     return None
 
 # =========================================================
-# MAIN OPTIMIZER (FIXED HYBRID LOGIC)
+# SCHEDULER (GROQ)
 # =========================================================
 def optimizer(data):
 
@@ -136,30 +140,27 @@ def optimizer(data):
     free_blocks = compute_free_blocks(events)
 
     system_prompt = """
-You are a task allocator.
+You are a deterministic scheduling engine.
 
-You do NOT create schedules from scratch.
-
-You ONLY assign tasks into provided free time blocks.
+Return ONLY valid JSON.
 
 Rules:
-- Do NOT overlap blocks
+- Use ONLY provided free blocks
 - Do NOT modify calendar events
-- Fill ONLY free blocks
-- If burnout > 70 → reduce tasks (leave gaps)
-- If burnout > 60 → insert 10 min breaks between tasks
-- Prefer shorter tasks first if burnout high
+- Fill free time with tasks or breaks
+- If burnout > 70: reduce workload heavily
+- If burnout > 60: insert 10–15 min breaks
+- No overlaps allowed
 
-Return JSON ONLY:
+Output format:
 
 {
-  "summary": "...",
   "schedule": [
     {
       "start": "HH:MM",
       "end": "HH:MM",
-      "title": "...",
-      "type": "task|break"
+      "title": "string",
+      "type": "task|break|idle"
     }
   ]
 }
@@ -176,18 +177,58 @@ Return JSON ONLY:
     plan = extract_json(raw)
 
     if not plan:
-        plan = {"summary":"fallback","schedule":[]}
+        plan = {"schedule": []}
 
     state_memory["burnout_history"].append(burnout)
 
     return {
-        "burnout": round(burnout,2),
+        "burnout": round(burnout, 2),
         "free_blocks": free_blocks,
         "plan": plan
     }
 
 # =========================================================
-# INPUT (YOUR DATA)
+# ICS EXPORT (GOOGLE CALENDAR IMPORT FILE)
+# =========================================================
+def export_ics(schedule, filename="generated_schedule.ics"):
+
+    now = datetime(2026, 4, 25, 6, 0, 0)  # fixed base day for consistency
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//BurnoutOptimizer//EN"
+    ]
+
+    for i, item in enumerate(schedule):
+
+        try:
+            sh, sm = map(int, item["start"].split(":"))
+            eh, em = map(int, item["end"].split(":"))
+
+            start_dt = now.replace(hour=sh, minute=sm)
+            end_dt = now.replace(hour=eh, minute=em)
+
+            lines += [
+                "BEGIN:VEVENT",
+                f"UID:{i}@burnout",
+                f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}",
+                f"DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}",
+                f"SUMMARY:{item.get('title','Task')}",
+                "END:VEVENT"
+            ]
+        except:
+            continue
+
+    lines.append("END:VCALENDAR")
+
+    with open(filename, "w") as f:
+        f.write("\n".join(lines))
+
+    return filename
+
+# =========================================================
+# INPUT DATA
 # =========================================================
 data = {
     "sleep_hours": 5.2,
@@ -197,24 +238,27 @@ data = {
     "free_time_minutes": 15,
     "calendar_hours": 9,
     "tasks": [
-        {"name":"study CS288","done":False},
-        {"name":"emails","done":False},
-        {"name":"gym","done":False},
-        {"name":"project","done":False}
+        {"name": "study CS288", "done": False},
+        {"name": "emails", "done": False},
+        {"name": "gym", "done": False},
+        {"name": "project work", "done": False}
     ]
 }
 
 # =========================================================
-# RUN
+# RUN PIPELINE
 # =========================================================
 result = optimizer(data)
 
 print("\nBURNOUT:", result["burnout"])
 
-print("\nFREE BLOCKS:")
-for b in result["free_blocks"]:
-    print(to_time(b[0]), "-", to_time(b[1]))
-
 print("\nSCHEDULE:")
 for s in result["plan"]["schedule"]:
     print(s.get("start"), "-", s.get("end"), "→", s.get("title"))
+
+# =========================================================
+# EXPORT TO GOOGLE CALENDAR FILE
+# =========================================================
+ics_file = export_ics(result["plan"]["schedule"])
+
+print("\nGOOGLE CALENDAR FILE CREATED:", ics_file)
