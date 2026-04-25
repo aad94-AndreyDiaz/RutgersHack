@@ -1,7 +1,10 @@
 import json
-import requests
+import os
 import re
-from datetime import datetime, timedelta
+import requests
+from datetime import datetime
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 
 # =========================================================
 # STATE
@@ -11,7 +14,7 @@ state_memory = {
 }
 
 # =========================================================
-# SCORING (UNCHANGED CORE MODEL)
+# SCORING
 # =========================================================
 def sleep_score(h): return min(1.0, max(0.1, h / 8))
 def water_score(g): return min(1.0, g / 8)
@@ -50,12 +53,12 @@ def burnout_engine(data):
 def build_events():
     return [
         {"name": "Outwater Basketball", "start": "07:00", "end": "09:00"},
-        {"name": "Cabinet Meeting", "start": "09:00", "end": "09:30"},
-        {"name": "CS288", "start": "11:30", "end": "12:50"},
-        {"name": "Common Hour", "start": "11:30", "end": "13:00"},
-        {"name": "E-Board Meeting", "start": "11:30", "end": "13:00"},
-        {"name": "YWCC Class", "start": "13:00", "end": "14:20"},
-        {"name": "CS Generative AI", "start": "16:00", "end": "17:20"},
+        {"name": "Cabinet Meeting",      "start": "09:00", "end": "09:30"},
+        {"name": "CS288",                "start": "11:30", "end": "12:50"},
+        {"name": "Common Hour",          "start": "11:30", "end": "13:00"},
+        {"name": "E-Board Meeting",      "start": "11:30", "end": "13:00"},
+        {"name": "YWCC Class",           "start": "13:00", "end": "14:20"},
+        {"name": "CS Generative AI",     "start": "16:00", "end": "17:20"},
     ]
 
 # =========================================================
@@ -74,16 +77,13 @@ def to_time(m):
 def compute_free_blocks(events):
     events = sorted(events, key=lambda x: to_min(x["start"]))
     start_day, end_day = 6 * 60, 23 * 60
-
     free = []
     cur = start_day
 
     for e in events:
         s, t = to_min(e["start"]), to_min(e["end"])
-
         if s > cur:
             free.append((cur, s))
-
         cur = max(cur, t)
 
     if cur < end_day:
@@ -92,14 +92,24 @@ def compute_free_blocks(events):
     return free
 
 # =========================================================
-# GROQ API
+# GROQ API  —  key loaded from environment variable
+# Set it with: export GROQ_API_KEY="gsk_..."
 # =========================================================
-GROQ_API_KEY = "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"
-URL = "https://api.groq.com/openai/v1/chat/completions"
+# Load from environment first; fall back to the hardcoded key for local dev.
+# WARNING: never commit the hardcoded key to git — add buildScheduleTemplate.py to .gitignore
+# or move to a .env file before sharing.
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") or "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"
 
 def groq_call(payload, system_prompt):
+    if not GROQ_API_KEY:
+        raise ValueError(
+            "GROQ_API_KEY is not set.\n"
+            "Run:  set GROQ_API_KEY=gsk_...   (Windows)\n"
+            "  or  export GROQ_API_KEY=gsk_... (Mac/Linux)"
+        )
+
     r = requests.post(
-        URL,
+        GROQ_URL,
         headers={
             "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json"
@@ -108,12 +118,21 @@ def groq_call(payload, system_prompt):
             "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(payload)}
+                {"role": "user",   "content": json.dumps(payload)}
             ],
             "temperature": 0.2
         }
     )
-    return r.json()["choices"][0]["message"]["content"]
+
+    body = r.json()
+
+    if "choices" not in body:
+        # Print the real Groq error so it's easy to diagnose
+        raise RuntimeError(
+            f"Groq API error (HTTP {r.status_code}):\n{json.dumps(body, indent=2)}"
+        )
+
+    return body["choices"][0]["message"]["content"]
 
 # =========================================================
 # JSON PARSER SAFETY
@@ -121,63 +140,56 @@ def groq_call(payload, system_prompt):
 def extract_json(text):
     try:
         return json.loads(text)
-    except:
+    except Exception:
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if m:
             try:
                 return json.loads(m.group())
-            except:
+            except Exception:
                 return None
     return None
 
 # =========================================================
-# SCHEDULER (GROQ)
+# SCHEDULER
 # =========================================================
-def optimizer(data):
-
-    burnout = burnout_engine(data)
-    events = build_events()
-    free_blocks = compute_free_blocks(events)
-
-    system_prompt = """
+SYSTEM_PROMPT = """
 You are a deterministic scheduling engine.
 
-Return ONLY valid JSON.
+Return ONLY valid JSON — no markdown, no explanation.
 
 Rules:
 - Use ONLY provided free blocks
 - Do NOT modify calendar events
 - Fill free time with tasks or breaks
-- If burnout > 70: reduce workload heavily
-- If burnout > 60: insert 10–15 min breaks
+- If burnout > 70: reduce workload heavily, prioritise rest
+- If burnout > 60: insert 10-15 min breaks between tasks
 - No overlaps allowed
 
 Output format:
-
 {
   "schedule": [
-    {
-      "start": "HH:MM",
-      "end": "HH:MM",
-      "title": "string",
-      "type": "task|break|idle"
-    }
+    { "start": "HH:MM", "end": "HH:MM", "title": "string", "type": "task|break|idle" }
   ]
 }
 """
 
+def optimizer(data):
+    burnout = burnout_engine(data)
+    events = build_events()
+    free_blocks = compute_free_blocks(events)
+
     payload = {
-        "burnout": burnout,
+        "burnout": round(burnout, 2),
         "tasks": data["tasks"],
-        "free_blocks": free_blocks,
+        "free_blocks": [
+            {"start": to_time(s), "end": to_time(e)}
+            for s, e in free_blocks
+        ],
         "calendar": events
     }
 
-    raw = groq_call(payload, system_prompt)
-    plan = extract_json(raw)
-
-    if not plan:
-        plan = {"schedule": []}
+    raw = groq_call(payload, SYSTEM_PROMPT)
+    plan = extract_json(raw) or {"schedule": []}
 
     state_memory["burnout_history"].append(burnout)
 
@@ -188,36 +200,32 @@ Output format:
     }
 
 # =========================================================
-# ICS EXPORT (GOOGLE CALENDAR IMPORT FILE)
+# ICS EXPORT
 # =========================================================
 def export_ics(schedule, filename="generated_schedule.ics"):
-
-    now = datetime(2026, 4, 25, 6, 0, 0)  # fixed base day for consistency
+    now = datetime(2026, 4, 25, 6, 0, 0)
 
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//BurnoutOptimizer//EN"
+        "PRODID:-//CalmCore//BurnoutOptimizer//EN"
     ]
 
     for i, item in enumerate(schedule):
-
         try:
             sh, sm = map(int, item["start"].split(":"))
             eh, em = map(int, item["end"].split(":"))
-
             start_dt = now.replace(hour=sh, minute=sm)
-            end_dt = now.replace(hour=eh, minute=em)
-
+            end_dt   = now.replace(hour=eh, minute=em)
             lines += [
                 "BEGIN:VEVENT",
-                f"UID:{i}@burnout",
+                f"UID:{i}@calmcore",
                 f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}",
                 f"DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}",
-                f"SUMMARY:{item.get('title','Task')}",
+                f"SUMMARY:{item.get('title', 'Task')}",
                 "END:VEVENT"
             ]
-        except:
+        except Exception:
             continue
 
     lines.append("END:VCALENDAR")
@@ -228,37 +236,60 @@ def export_ics(schedule, filename="generated_schedule.ics"):
     return filename
 
 # =========================================================
-# INPUT DATA
+# FLASK APP
 # =========================================================
-data = {
-    "sleep_hours": 5.2,
-    "water_glasses": 3,
-    "break_minutes": 10,
-    "mood": 2,
-    "free_time_minutes": 15,
-    "calendar_hours": 9,
-    "tasks": [
-        {"name": "study CS288", "done": False},
-        {"name": "emails", "done": False},
-        {"name": "gym", "done": False},
-        {"name": "project work", "done": False}
-    ]
-}
+app = Flask(__name__)
+CORS(app)  # allows the dashboard HTML to call these routes from the browser
+
+@app.route("/build-schedule", methods=["POST"])
+def build_schedule():
+    """
+    Called by Dashboard.html Schedule tab.
+    Expects JSON body matching optimizer(data) input shape.
+    Returns { burnout, plan: { schedule: [...] } }
+    """
+    data = request.json
+    result = optimizer(data)
+    return jsonify(result)
+
+@app.route("/schedule", methods=["POST"])
+def schedule():
+    data = request.json
+    result = optimizer(data)
+    return jsonify(result["plan"])
+
+@app.route("/export-ics", methods=["POST"])
+def export_calendar():
+    schedule_data = request.json["schedule"]
+    file = export_ics(schedule_data)
+    return send_file(file, as_attachment=True)
 
 # =========================================================
-# RUN PIPELINE
+# CLI TEST — only runs via: python buildScheduleTemplate.py
 # =========================================================
-result = optimizer(data)
+if __name__ == "__main__":
+    sample_data = {
+        "sleep_hours": 5.2,
+        "water_glasses": 3,
+        "break_minutes": 10,
+        "mood": 2,
+        "free_time_minutes": 15,
+        "calendar_hours": 9,
+        "tasks": [
+            {"name": "study CS288",  "done": False},
+            {"name": "emails",       "done": False},
+            {"name": "gym",          "done": False},
+            {"name": "project work", "done": False}
+        ]
+    }
 
-print("\nBURNOUT:", result["burnout"])
+    result = optimizer(sample_data)
+    print("\nBURNOUT:", result["burnout"])
+    print("\nSCHEDULE:")
+    for s in result["plan"]["schedule"]:
+        print(s.get("start"), "-", s.get("end"), "→", s.get("title"))
 
-print("\nSCHEDULE:")
-for s in result["plan"]["schedule"]:
-    print(s.get("start"), "-", s.get("end"), "→", s.get("title"))
+    ics_file = export_ics(result["plan"]["schedule"])
+    print("\nGOOGLE CALENDAR FILE CREATED:", ics_file)
 
-# =========================================================
-# EXPORT TO GOOGLE CALENDAR FILE
-# =========================================================
-ics_file = export_ics(result["plan"]["schedule"])
-
-print("\nGOOGLE CALENDAR FILE CREATED:", ics_file)
+    app.run(host="0.0.0.0", port=5000, debug=True)
