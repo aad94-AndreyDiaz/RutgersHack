@@ -1227,61 +1227,34 @@ async function buildSchedule() {
   // Show burnout ring immediately
   renderSchedBurnout(burnout);
 
-  // Build prompt for AI scheduler
-  const systemPrompt = `You are a deterministic scheduling engine.
-Return ONLY valid JSON — no markdown, no explanation, nothing else.
-
-Rules:
-- Use ONLY the provided free blocks (do not create events outside them)
-- Do NOT modify or mention the fixed calendar events
-- Fill free time with the given tasks and break periods
-- If burnout > 70: reduce workload heavily, insert long breaks, prioritize rest
-- If burnout > 60: insert 10-15 min breaks between tasks
-- If burnout <= 60: schedule tasks efficiently with short breaks
-- No overlaps allowed
-- Keep tasks realistic in duration (15–60 min each)
-
-Output format (strict):
-{
-  "schedule": [
-    { "start": "HH:MM", "end": "HH:MM", "title": "string", "type": "task|break|idle" }
-  ]
-}`;
-
-  const userPayload = {
-    burnout: Math.round(burnout * 10) / 10,
-    tasks: tasks.map(t=>t.name),
-    free_blocks: freeBlocks.map(([s,e])=>({ start: toTime(s), end: toTime(e) }))
+  // Send to Flask /build-schedule route
+  const payload = {
+    sleep_hours:        sl,
+    water_glasses:      wa,
+    break_minutes:      br,
+    mood:               mood,
+    free_time_minutes:  free,
+    calendar_hours:     cal,
+    tasks:              tasks
   };
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("http://127.0.0.1:5000/build-schedule", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: JSON.stringify(userPayload) }]
-      })
+      body: JSON.stringify(payload)
     });
+
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
     const data = await res.json();
-    const raw = data.content.map(c=>c.text||'').join('');
-
-    let plan;
-    try { plan = JSON.parse(raw); }
-    catch {
-      const m = raw.match(/\{[\s\S]*\}/);
-      plan = m ? JSON.parse(m[0]) : { schedule: [] };
-    }
-
-    lastSchedule = plan.schedule || [];
+    lastSchedule = (data.plan && data.plan.schedule) ? data.plan.schedule : [];
     renderTimeline(lastSchedule, events);
     document.getElementById('sched-result').style.display = 'block';
     document.getElementById('sched-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   } catch(e) {
-    alert('Error building schedule: ' + e.message);
+    alert('Could not reach Flask server.\n\nMake sure you ran:\n  python buildScheduleTemplate.py\n\nError: ' + e.message);
   }
 
   document.getElementById('sched-loading').style.display = 'none';
